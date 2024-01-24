@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import special
 
 # define the analytical solution for concentration in a type 1 boundary condition environment
-def bc1(Co, L, t, q, p, R):
+def bc1(t, Co, q, p, R):
     diffusion = 1.0 * 10**-9
     v = q / p / R
     alpha = 0.83 * np.log10(L)**2.414
@@ -18,7 +18,7 @@ def bc1(Co, L, t, q, p, R):
     return C
 
 # define the analytical solution for concentration in a type 1 boundary condition environment
-def bc2(Co, L, t, q, p, R):
+def bc2(t, Co, q, p, R):
     diffusion = 1.0 * 10**-9
     v = q / p / R
     alpha = 0.83 * np.log10(L)**2.414
@@ -32,7 +32,7 @@ def bc2(Co, L, t, q, p, R):
     return C
 
 # define the analytical solution for concentration in a type 3 boundary condition environment
-def bc3(Co, L, t, q, p, R):
+def bc3(t, Co, q, p, R):
     diffusion = 1.0 * 10**-9
     v = q / p / R
     alpha = 0.83 * np.log10(L)**2.414
@@ -56,17 +56,17 @@ q = 0.056
 p = 0.25
 R = 1.0
 
-test1 = bc1(Co, L, t, q, p, R)
-test2 = bc2(Co, L, t, q, p, R)
-test3 = bc3(Co, L, t, q, p, R)
+#test1 = bc1(Co, L, t, q, p, R)
+#test2 = bc2(Co, L, t, q, p, R)
+#test3 = bc3(Co, L, t, q, p, R)
 
-plt.plot(t, test1, label='bc1')
-plt.plot(t, test2, label='bc2')
-plt.plot(t, test3, label='bc3')
-plt.xlabel('Time')
-plt.ylabel('Concentration')
-plt.title('Concentration vs Time')
-plt.legend()
-plt.show()
+#plt.plot(t, test1, label='bc1')
+#plt.plot(t, test2, label='bc2')
+#plt.plot(t, test3, label='bc3')
+#plt.xlabel('Time')
+#plt.ylabel('Concentration')
+#plt.title('Concentration vs Time')
+#plt.legend()
+#plt.show()
 
 
