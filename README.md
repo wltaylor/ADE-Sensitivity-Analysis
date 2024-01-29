@@ -3,15 +3,15 @@ Sensitivity analysis of type 1, 2 and 3 boundary condition advection dispersion 
 
 
 # Analytical Solutions
-The analytical solution for boundary condition 1 is given by:
+The analytical solution for boundary condition 1 (Ogata and Banks 1961) is given by:
 
 ![Equation](https://latex.codecogs.com/svg.image?{\color{White}C(t)=\frac{C_0}{2}\left[\text{erfc}\left(\frac{L-vt}{2\sqrt{D_l&space;t}}\right)&plus;\exp\left(\frac{vL}{D_l}\right)\text{erfc}\left(\frac{L&plus;vt}{2\sqrt{D_l&space;t}}\right)\right]})
 
-The analytical solution for boundary condition 2 is given by:
+The analytical solution for boundary condition 2 (Sauty 1980) is given by:
 
 ![Equation](https://latex.codecogs.com/svg.image?{\color{White}C(t)=\frac{C_0}{2}\left[\text{erfc}\left(\frac{L-vt}{2\sqrt{D_l&space;t}}\right)-\exp\left(\frac{vL}{D_l}\right)\text{erfc}\left(\frac{L&plus;vt}{2\sqrt{D_l&space;t}}\right)\right]})
 
-The analytical solution for boundary condition 3 is given by:
+The analytical solution for boundary condition 3 (Van Genuchten 1984) is given by:
 
 ![Equation](https://latex.codecogs.com/svg.image?{\color{White}C(t)=\frac{C_0}{2}\left[\text{erfc}\left(\frac{L-vt}{2\sqrt{D_l&space;t}}\right)&plus;\sqrt{\frac{v^2&space;t}{\pi&space;D_l}}\exp\left(-\frac{(L-vt)^2}{4D_l&space;t}\right)-\frac{1}{2}\left(1&plus;\frac{vL}{D_l}&plus;\frac{v^2t}{D_l}\right)\exp\left(\frac{vL}{D_l}\right)\text{erfc}\left(\frac{L&plus;vt}{2\sqrt{D_l&space;t}}\right)\right])
 
