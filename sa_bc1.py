@@ -24,19 +24,99 @@ problem = {
                [0.5,4]]
 }
 
-# generate samples using the saltelli sampler (change to larger value for more accurate SA indices)
+
 param_values = saltelli.sample(problem, 2**8)
 
-Y = np.zeros([param_values.shape[0]]) # model outputs
-t = 1000 #days, choose a fixed time to evaluate the model at
-L = 25 # fixed length
+# evaluate
+t = np.linspace(0,1000,1000)
+y = np.array([model.bc1(t, *params) for params in param_values])
+sobol_indices = [sobol.analyze(problem, Y) for Y in y.T]
+#%% just S1s
 
-# evaluate the model
-for i, X in enumerate(param_values):
-    Y[i] = model.bc1(t, X[0], X[1], X[2], X[3])
+S1s = np.array([s['S1'] for s in sobol_indices])
+
+fig = plt.figure(figsize=(12,6), constrained_layout = True)
+gs = fig.add_gridspec(2,3)
+
+ax0 = fig.add_subplot(gs[:,0])
+ax1 = fig.add_subplot(gs[0,1])
+ax2 = fig.add_subplot(gs[1,1])
+ax3 = fig.add_subplot(gs[0,2])
+ax4 = fig.add_subplot(gs[1,2])
+
+for i, ax in enumerate([ax1,ax2,ax3,ax4]):
+    ax.plot(t, S1s[:,i],
+            label=r'S1$_\mathregular{{{}}}$'.format(problem["names"][i]),
+            color = 'black')
+    ax.set_xlabel('time')
+    ax.set_ylabel('First-order Sobol index')
+    ax.set_xlim(1,1000)
+    ax.set_ylim(0,1)
+    ax.set_title(problem["names"][i])
+    ax.legend()
     
-Si = sobol.analyze(problem, Y, print_to_console = True)
+ax0.plot(t, np.mean(y, axis=0), label = 'Mean', color = 'black')
 
-plt.figure(figsize = (14,6))
-Si.plot()
-plt.tight_layout()
+# in percent
+prediction_interval = 95
+
+ax0.fill_between(t,
+                 np.percentile(y, 50 - prediction_interval/2., axis = 0),
+                 np.percentile(y, 50 + prediction_interval/2., axis = 0),
+                 alpha = 0.5, color = 'black',
+                 label = f"{prediction_interval} % prediction interval")
+
+#%% try with S2s and ST
+
+S1s = np.array([s['S1'] for s in sobol_indices])
+S2s = np.array([s['S2'] for s in sobol_indices])
+STs = np.array([s['ST'] for s in sobol_indices])
+
+fig = plt.figure(figsize=(12,6), constrained_layout = True)
+gs = fig.add_gridspec(2,3)
+
+ax0 = fig.add_subplot(gs[:,0])
+ax1 = fig.add_subplot(gs[0,1])
+ax2 = fig.add_subplot(gs[1,1])
+ax3 = fig.add_subplot(gs[0,2])
+ax4 = fig.add_subplot(gs[1,2])
+
+for i, ax in enumerate([ax1,ax2,ax3,ax4]):
+    ax.plot(t, S1s[:,i],
+            label='S1',
+            color = 'blue')
+    ax.plot(t, S2s[:,i],
+            label = 'S2',
+            color = 'red')
+    ax.plot(t, STs[:,i],
+            label = 'ST',
+            color = 'black')
+    ax.set_xlabel('Time (days)')
+    ax.set_ylabel('Sobol index')
+    ax.set_xlim(1,1000)
+    ax.set_ylim(0,1)
+    ax.set_title(problem["names"][i])
+    ax.legend()
+    
+ax0.plot(t, np.mean(y, axis=0), label = 'Mean', color = 'black')
+ax0.set_title('Modeled Concentration')
+ax0.set_xlabel('Time (days)')
+ax0.set_ylabel('Concentration (mg/L)')
+
+# in percent
+prediction_interval = 95
+
+ax0.fill_between(t,
+                 np.percentile(y, 50 - prediction_interval/2., axis = 0),
+                 np.percentile(y, 50 + prediction_interval/2., axis = 0),
+                 alpha = 0.5, color = 'black',
+                 label = f"{prediction_interval} % prediction interval")
+
+fig.suptitle('Sobol Sensitivity Analysis - Type 1 Boundary Condition', fontsize = 16, fontweight='bold')
+
+
+
+
+
+
+
