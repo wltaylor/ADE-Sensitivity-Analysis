@@ -54,7 +54,7 @@ plt.subplot(2,2,2)
 sns.kdeplot(params_df['Da'], c='black')
 plt.axvline(1, c = 'red')
 plt.xscale('log')
-plt.title('Sampled Dahmkoler #')
+plt.title('Sampled Dahmkohler #')
 
 
 plt.subplot(2,2,3)
@@ -67,7 +67,7 @@ plt.subplot(2,2,4)
 dahmkoler_counts = params_df['Da'].apply(lambda x: 'Transport Dominated' if x < 1 else 'Reaction Dominated').value_counts()
 dahmkoler_counts = dahmkoler_counts.reindex(['Transport Dominated', 'Reaction Dominated'])
 plt.bar(dahmkoler_counts.index, dahmkoler_counts.values, color=['orange','purple'])
-plt.title('System count by Dahmkoler #')
+plt.title('System count by Dahmkohler #')
 
 plt.suptitle('Parameter Ranges', fontsize=18)
 plt.tight_layout()
@@ -99,7 +99,7 @@ plt.show()
 
 
 print('Peclet range: ' +str(params_df['Pe'].min()) +' to ' + str(params_df['Pe'].max()))
-print('Dahmkoler range: ' +str(params_df['Da'].min()) +' to ' + str(params_df['Da'].max()))
+print('Dahmkohler range: ' +str(params_df['Da'].min()) +' to ' + str(params_df['Da'].max()))
 
 #%% create BTCs from sampled parameters
 

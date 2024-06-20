@@ -2,6 +2,430 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import special
+from scipy import interpolate
+from numba import njit
+from mpmath import invertlaplace
+from mpmath import mp, exp
+mp.dps = 12
+
+def laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2):
+    '''Laplace time solution for a Type I boundary condition pulse injection in one dimension
+    Returns a concentration value "C" in the laplace domain
+    s: laplace frequency variable
+    rho_b: bulk density
+    D: dispersion
+    v: pore velocity
+    lamb: first order decay rate constant
+    alpha: first order desorption rate constant
+    kd: sorption distribution coefficient
+    Co: initial concentration (injected, not already present in system)
+    ts: pulse duration
+    x: measured concentration location
+    L: column length
+    '''
+
+    big_theta = s + lamb + (rho_b * alpha * kd * s) / (theta * (s + alpha))
+    
+    r1 = 1 / (2 * D) * (v + mp.sqrt(v ** 2 + 4 * D * big_theta))
+    r2 = 1 / (2 * D) * (v - mp.sqrt(v ** 2 + 4 * D * big_theta))
+    
+    term1_numerator = r2 * mp.exp(r2 * L + r1 * x) - r1 * mp.exp(r1 * L + r2 * x)
+    term1_denominator = r2 * mp.exp(r2 * L) - r1 * mp.exp(r1 * L)
+    
+    term1 = mp.fdiv(term1_numerator, term1_denominator)
+    
+    C = mp.fdiv(Co, s) * (1 - mp.exp(-ts * s)) * term1
+    
+    return C
+
+def concentration_102_all_metrics(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    '''Converts the laplace values from function laplace_102 to the real time domain
+    Returns indexes for early arrival, peak concentration, and late time tailing, and an array of the concentration values
+    Indexes are returned in dimensionless time
+    '''
+    concentration = []
+    
+    # convert to dimensionless time
+    t = t/(L/v)
+
+    for time in t:
+        if time == 0:
+            conc = 0  # Assuming concentration at t=0 is Co 
+        else:
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='cohen')
+        concentration.append(conc)
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+    
+    # Find the index where the concentration first reaches 10% of peak value
+    early_arrival_idx = 0
+    for i in range(len(C_array)):
+        if C_array[i] >= tenth_percentile_value:
+            early_arrival_idx = i
+            break
+
+    # Find the index where the concentration first reaches 10% of peak value
+    late_arrival_idx = 0
+    for i in range(peak_index, len(C_array)):
+        if C_array[i] <= tenth_percentile_value:
+            late_arrival_idx = i
+            break
+
+    return early_arrival_idx, peak_index, late_arrival_idx, C_array
+
+def concentration_102_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    '''Converts the laplace solution from the function laplace_102 to the real time domain, with an adaptive time step to reduce computation time
+    Returns indexes for early arrival, peak concentration, and late time tailing, and arrays of the concentration values and corresponding adaptive times
+    Indexes are returned in dimensionless time
+    '''
+    # t is an input array of time values, the others are scalar parameters
+    # initialize concentration and adaptive time lists
+    concentration = []
+    adaptive_times = []
+    # convert to dimensionless time
+    t = t/(L/v)
+    default_step = t.max()/len(t)
+    current_time = 0
+    
+    # tolerance limit of step size
+    tolerance = 0.01
+    
+    while current_time < t.max():
+        if current_time == 0:
+            conc = 0  # deal with time 0 case, if there is already concentration in the system change to that value
+        else:
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), current_time, method='cohen')
+        concentration.append(conc)
+        adaptive_times.append(current_time)
+        # check if concentration at current and previous time step changed substantially (> 1%)
+        if len(concentration) < 2:
+            current_time += default_step
+        if len(concentration) > 1 and abs(concentration[-1] - concentration[-2]) > tolerance:
+            current_time += default_step
+        
+        # speed up a lot if it's past the peak
+        if len(concentration) > 1 and concentration[-1] / np.max(concentration) < 0.1:
+            current_time += default_step * 100
+        else:
+            current_time += default_step * 1.5
+            
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+    
+    # Find the index where the concentration first reaches 10% of peak value
+    early_arrival_idx = 0
+    for i in range(len(C_array)):
+        if C_array[i] >= tenth_percentile_value:
+            early_arrival_idx = i
+            break
+
+    # Find the index where the concentration first reaches 10% of peak value
+    late_arrival_idx = 0
+    for i in range(peak_index, len(C_array)):
+        if C_array[i] <= tenth_percentile_value:
+            late_arrival_idx = i
+            break
+
+    return early_arrival_idx, peak_index, late_arrival_idx, C_array, adaptive_times
+
+
+def laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2):
+    '''Laplace time solution for a Type III boundary condition pulse injection in one dimension
+    Returns a concentration value "C" in the laplace domain
+    s: laplace frequency variable
+    rho_b: bulk density
+    D: dispersion
+    v: pore velocity
+    lamb: first order decay rate constant
+    alpha: first order desorption rate constant
+    kd: sorption distribution coefficient
+    Co: initial concentration (injected, not already present in system)
+    ts: pulse duration
+    x: measured concentration location
+    L: column length
+    '''
+
+    big_theta = s + lamb + (rho_b * alpha * kd * s) / (theta * (s + alpha))
+    delta = 1/(2*D) * mp.sqrt((v**2 + 4*D*big_theta))
+    d = 2 * delta * L
+    h = D/v
+    sigma = v/(2*D)
+    
+    r1 = sigma + delta
+    r2 = sigma - delta
+    
+    term1_numerator = r2 * mp.exp(r1 * x - d) - r1 * mp.exp(r2 * x)
+    term1_denominator = r2 * (1 - h * r1) * mp.exp(-d) - (1 - h * r2)*r1
+    
+    term1 = mp.fdiv(term1_numerator, term1_denominator)
+    
+    C = mp.fdiv(Co, s) * (1 - mp.exp(-ts * s)) * term1
+    
+    return C
+
+def concentration_106_all_metrics(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    '''Converts the laplace values from function laplace_106 to the real time domain
+    Returns indexes for early arrival, peak concentration, and late time tailing, and an array of the concentration values
+    Indexes are returned in dimensionless time
+    '''
+    concentration = []
+    
+    # convert to dimensionless time
+    t = t/(L/v)
+
+    for time in t:
+        if time == 0:
+            conc = 0  # Assuming concentration at t=0 is Co 
+        else:
+            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='cohen')
+        concentration.append(conc)
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+    
+    # Find the index where the concentration first reaches 10% of peak value
+    early_arrival_idx = 0
+    for i in range(len(C_array)):
+        if C_array[i] >= tenth_percentile_value:
+            early_arrival_idx = i
+            break
+
+    # Find the index where the concentration first reaches 10% of peak value
+    late_arrival_idx = 0
+    for i in range(peak_index, len(C_array)):
+        if C_array[i] <= tenth_percentile_value:
+            late_arrival_idx = i
+            break
+
+    return early_arrival_idx, peak_index, late_arrival_idx, C_array
+
+def concentration_106_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    '''Converts the laplace solution from the function laplace_106 to the real time domain, with an adaptive time step to reduce computation time
+    Returns indexes for early arrival, peak concentration, and late time tailing, and arrays of the concentration values and corresponding adaptive times
+    Indexes are returned in dimensionless time
+    '''
+    # t is an input array of time values, the others are scalar parameters
+    # initialize concentration and adaptive time lists
+    concentration = []
+    adaptive_times = []
+    # convert to dimensionless time
+    t = t/(L/v)
+    default_step = t.max()/len(t)
+    current_time = 0
+    
+    # tolerance limit of step size
+    tolerance = 0.01
+    
+    while current_time < t.max():
+        if current_time == 0:
+            conc = 0  # deal with time 0 case, if there is already concentration in the system change to that value
+        else:
+            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), current_time, method='cohen')
+        concentration.append(conc)
+        adaptive_times.append(current_time)
+        # check if concentration at current and previous time step changed substantially (> 1%)
+        if len(concentration) < 2:
+            current_time += default_step
+        if len(concentration) > 1 and abs(concentration[-1] - concentration[-2]) > tolerance:
+            current_time += default_step
+        
+        # speed up a lot if it's past the peak
+        if len(concentration) > 1 and concentration[-1] / np.max(concentration) < 0.1:
+            current_time += default_step * 100
+        else:
+            current_time += default_step * 1.5
+            
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+    
+    # Find the index where the concentration first reaches 10% of peak value
+    early_arrival_idx = 0
+    for i in range(len(C_array)):
+        if C_array[i] >= tenth_percentile_value:
+            early_arrival_idx = i
+            break
+
+    # Find the index where the concentration first reaches 10% of peak value
+    late_arrival_idx = 0
+    for i in range(peak_index, len(C_array)):
+        if C_array[i] <= tenth_percentile_value:
+            late_arrival_idx = i
+            break
+
+    return early_arrival_idx, peak_index, late_arrival_idx, C_array, adaptive_times
+
+
+#--------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------------
+# below are draft or formerly used equations that are no longer part of the main analysis
+
+def concentration_102(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    # convert the input times to dimensionless time
+    t = t/(L/v)
+    concentration = []
+
+    for time in t:
+        if time == 0:
+            conc = 0
+        else:
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
+        concentration.append(conc)
+    print('transformed')
+    return concentration
+
+def concentration_102_early_arrival(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    # Compute concentration for each time t
+    concentration = []
+    
+    # convert to dimensionless time
+    t = t/(L/v)
+
+    for time in t:
+        if time == 0:
+            conc = 0  # Assuming concentration at t=0 is Co (you may adjust as needed)
+        else:
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
+        concentration.append(conc)
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+
+    # Find the index where the concentration first reaches 10% of peak value
+    for i in range(len(C_array)):
+        if C_array[i] >= tenth_percentile_value:
+            early_arrival_idx = i
+            break
+    
+    # Find the corresponding time value
+    early_arrival = t[early_arrival_idx]
+
+    return early_arrival_idx
+
+def concentration_102_peak(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    # convert to dimensionless time
+    t = t/(L/v)
+
+    # Compute concentration for each time t
+    concentration = []
+    for time in t:
+        if time == 0:
+            conc = 0  # Assuming concentration at t=0 is Co (you may adjust as needed)
+        else:
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
+        concentration.append(conc)
+    # Convert to array and to dimensionless concentration
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+    
+    # Find the corresponding time value
+    peak_time = t[peak_index]
+
+    return peak_index
+
+def concentration_102_late_arrival(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+    # Compute concentration for each time t
+    concentration = []
+    
+    # convert to dimensionless time
+    t = t/(L/v)
+
+    for time in t:
+        if time == 0:
+            conc = 0  # Assuming concentration at t=0 is Co (you may adjust as needed)
+        else:
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
+        concentration.append(conc)
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+    late_arrival_idx = 0
+    # Find the index where the concentration first reaches 10% of peak value
+    for i in range(peak_index, len(C_array)):
+        if C_array[i] <= tenth_percentile_value:
+            late_arrival_idx = i
+            break
+
+    return late_arrival_idx
+
+
+def concentration_106(t, theta, rho_b, D, v, lamb, alpha, kd, Co):
+    concentration = [invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog') for time in t]
+    print('transformed')
+    return concentration
+
+def concentration_106_early_arrival(t, theta, rho_b, D, v, lamb, alpha, kd, Co):
+    # Compute concentration for each time t
+    concentration = []
+    for time in t:
+        if time == 0:
+            conc = 0  # Assuming concentration at t=0 is Co (you may adjust as needed)
+        else:
+            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
+        concentration.append(conc)
+    # Convert to array and normalize
+    C_array = np.array(concentration, dtype=float) / Co
+    
+    # Find peak concentration
+    peak_C = np.max(C_array)
+    peak_index = np.argmax(C_array)
+
+    # Compute 10% of peak concentration
+    tenth_percentile_value = 0.1 * peak_C
+
+    # Find the index where the concentration first reaches 10% of peak value
+    for i in range(len(C_array)):
+        if C_array[i] >= tenth_percentile_value:
+            early_arrival_idx = i
+            break
+    
+    # Find the corresponding time value
+    early_arrival = t[early_arrival_idx]
+
+    return early_arrival
+
 
 # define the analytical solution for concentration in a type 1 boundary condition environment
 # base analytical solution
@@ -19,18 +443,7 @@ def bc1(t, Co, q, p, R):
 
     return C
 
-# first arrival
-# def first_arrival_bc1(t, Co, q, p, R):
-    
-#     time = np.arange(0,t,1)
-#     concs = bc1(time, Co, q, p, R)
-#     peak = np.max(concs)
-#     arrival_indices = np.where(concs >= 0.10 * peak)[0]
-    
-#     if arrival_indices.size > 0:
-#         return time[arrival_indices[0]]
-#     else:
-#         return None
+
 
 def first_arrival_bc1(t, Co, q, p, R): # t is an array of input times
     
@@ -141,26 +554,7 @@ def peak_conc_bc3(t, Co, q, p, R):
 # note: bc3 differs slightly from Veronica's notes. Van Genuchten describes the second term with v**2*t/Dl, Veron had v**2*L/Dl
 # also VG had special.erfc(L + v *t....etc) while V had special.erfc(L - v * t....etc) I was getting negative concentration values with V's version
 
-# inputs
-# Co = 1000
-# L = 25  # meters
-# t = np.arange(0, 10000, 1)
-# q = 0.01
-# p = 0.25
-# R = 1.0
 
-# test1 = bc1(t, Co, q, p, R)
-# test2 = bc2(t, Co, q, p, R)
-# test3 = bc3(t, Co, q, p, R)
-
-# plt.plot(t, test1, label='bc1')
-# plt.plot(t, test2, label='bc2')
-# plt.plot(t, test3, label='bc3')
-# plt.xlabel('Time')
-# plt.ylabel('Concentration')
-# plt.title('Concentration vs Time')
-# plt.legend()
-# plt.show()
 
 
 #%% one dimensional first-type finite pulse BC (concentration Co for duration t)
@@ -209,11 +603,6 @@ def concentration(x, t, C0, u, v, Dx, R, lt, Ci):
     
     return 0.5 * C0 * (np.exp(term1) * term2 + term3) - 0.5 * Ci * np.exp(-lt * t / R) * term4 + Ci * np.exp(-lt * t / R)
 
-# Example usage:
-# C0, u, v, Dx, R, lt, Ci are constants that you will need to define based on your problem.
-# x and t are the position and time for which you want to calculate the concentration.
-# C_x_t = concentration(x=1, t=1, C0=1, u=1, v=1, Dx=1, R=1, lt=1, Ci=1)
-# print(C_x_t)
 
 #%% continuous injection Goltz page 37
 def continuous(x, t, Co, v, R, lamb, Ci):
@@ -233,21 +622,6 @@ def continuous(x, t, Co, v, R, lamb, Ci):
     term7 = special.erfc((R * x + v * t) / (2 * np.sqrt(Dx * R * t)))
 
     return 0.5*Co * (term1*term2+term3*term4) - 0.5*Ci*np.exp(-lamb*t/R)*(term5+term6*term7) + Ci*np.exp(-lamb*t/R)
-
-
-# time = np.arange(0,30,1) # minutes, experiment time
-# x = 2 # meters, column length
-# Co = 1 # mg/m input concentration
-# v = 0.1 # m/min
-# R = 1 # retardation factor
-# lamb = 0 # first order degradation constant
-# Ci = 0 # initial concentration in system
-
-# plt.plot(continuous(2, time, Co, v, R, lamb, Ci))
-# plt.title('Concentration curve')
-# plt.xlabel('Time (minutes)')
-# plt.ylabel('Concentration (mg/m)')
-# plt.show()
 
 
 #%% pulse injection Goltz page 39
@@ -284,28 +658,6 @@ def pulse(x, t_scalar, ts, Co, v, R, lamb, Ci):
     
     return C,Dx,u
 
-# times = np.arange(0, 50, 1)  # minutes, experiment time
-# test = np.zeros(len(times))
-# testDx = np.zeros(len(times))
-# testu = np.zeros(len(times))
-# x = 0 # meters, column length
-# Co = 1 # mg/m input concentration
-# ts = 5 # min, pulse duration
-# v = 0.1 # m/min
-# R = 2 # retardation factor
-# lamb = 0 # first order degradation constant
-# Ci = 0 # initial concentration in system
-
-# for i, time in enumerate(times):
-#     print(time)
-#     test[i],testDx[i],testu[i] = pulse(x, time, ts, Co, v, R, lamb, Ci)
-
-# plt.plot(times, test)
-# plt.title('Concentration Curve')
-# plt.xlabel('Time (minutes)')
-# plt.ylabel('Concentration (mg/m)')
-# plt.ylim(0,1)
-# plt.show()
 
 #%% Van Genuchten solution
 
@@ -340,192 +692,6 @@ def pulse_concentration(x, t, Co, Ci, to, v, R, D, gamma):
     else:
         C = Ci + (Co - Ci) * A(x, t, v, D, R) + B(x, t, v, D, R, gamma) - Co * A(x, (t - to), v, D, R)
         return C
-
-# Example usage:
-# x = position where concentration is to be computed
-# t = time at which concentration is to be computed
-# Co = concentration of the pulse input
-# Ci = initial concentration in the system
-# to = duration of the pulse input
-# v = velocity of the flow
-# R = retardation factor
-# D = dispersion coefficient
-
-# Example parameters
-# x = 2  # meters
-# t = 5  # minutes
-# Co = 1  # mg/m
-# Ci = 0  # mg/m
-# to = 5  # minutes
-# v = 0.1  # m/min
-# R = 1  # unitless
-# D = 0.01  # m^2/min, for example
-# gamma = 1
-
-# # Compute concentration at x=2 m and t=10 min
-# concentration = pulse_concentration(x, t, Co, Ci, to, v, R, D, gamma)
-# print(concentration)
-
-# times = np.arange(1, 50, 1)  # minutes, experiment time
-# concentration = np.zeros(len(times))
-# for i,time in enumerate(times):
-#     concentration[i] = pulse_concentration(x, time, Co, Ci, to, v, R, D, gamma)
-
-# plt.plot(times,concentration)
-
-#%% model 102 goltz page 177
-
-# def model_102(theta, rho_b, D, v, lamb, alpha, kd, Co, L, ts, s, x):
-    
-    
-#     big_theta = s + lamb + (rho_b* alpha* kd * s)/(theta * (s + alpha))
-    
-#     r1 = 1/(2*D) * (v + np.sqrt((v**2 + 4*D*big_theta)))
-#     r2 = 1/(2*D) * (v - np.sqrt((v**2 + 4*D*big_theta)))
-    
-#     term1 = (r2 * np.exp(r2*L + r1*x) - r1*np.exp(r1*L + r2*x))/(r2 * np.exp(r2*L) - r1*np.exp(r1*L))
-    
-#     C = 1/s * Co *(1 - np.exp(-ts*s)) * term1
-    
-#     return C, big_theta, r1, r2, term1
-
-# theta = 0.25 # porous media porosity (unitless)
-# rho_b = 1.5 # porous media bulk density (kg/m)
-# D = 0.01 # dispersion (can't be zero)
-# v = 0.1 # pore velocity (m/min)
-# lamb = 0 # degradation first order rate constant
-# alpha = 100
-# kd = 0 # sorption distribution coefficient
-# Co = 1 # initial concentration (mg/m)
-# L = 2 # column length (m)
-# ts = 5 # pulse duration (min)
-# s = np.arange(0,50,1) # timesteps (min)
-# x = 2 # temporal location (m) in this case, at the column outlet
-
-# concentrations = np.zeros(len(s))
-# big_theta_test = np.zeros(len(s))
-# r1_test = np.zeros(len(s))
-# r2_test = np.zeros(len(s))
-# term1_test = np.zeros(len(s))
-
-# for i,time in enumerate(s):
-#     concentrations[i], big_theta_test[i],r1_test[i],r2_test[i],term1_test[i] = model_102(theta, rho_b, D, v, lamb, alpha, kd, Co, L, ts, time, x)
-# plt.plot(s,concentrations)
-# plt.show()
-
-
-#%%
-
-from mpmath import invertlaplace
-import numpy as np
-import matplotlib.pyplot as plt
-
-from mpmath import mp, exp
-mp.dps = 12
-
-# def C_laplace(s, theta, rho_b, D, v, lamb, alpha, kd, Co, L, x):
-#     big_theta = s + lamb + (rho_b * alpha * kd * s) / (theta * (s + alpha))
-    
-#     # Here we use mp.sqrt and mp.exp from mpmath for multiprecision calculations
-#     r1 = 1 / (2 * D) * (v + mp.sqrt(v ** 2 + 4 * D * big_theta))
-#     r2 = 1 / (2 * D) * (v - mp.sqrt(v ** 2 + 4 * D * big_theta))
-    
-#     # Convert the arguments to mpmath types before calling exp
-#     term1_numerator = r2 * exp(r2 * L + r1 * x) - r1 * exp(r1 * L + r2 * x)
-#     term1_denominator = r2 * exp(r2 * L) - r1 * exp(r1 * L)
-    
-#     # Make sure the division is done using mpmath's div function for multiprecision calculations
-#     term1 = mp.fdiv(term1_numerator, term1_denominator)
-    
-#     # Division should be handled by mpmath to maintain compatibility
-#     C = mp.fdiv(Co, s) * (1 - exp(-ts * s)) * term1
-    
-#     return C
-# # Define the parameters
-# theta, rho_b, D, v, lamb, alpha, kd, Co, L, x = 0.25, 1.5, 0.0001, 0.1, 0, 1, 0, 1, 2, 2
-
-# # Define a range of times for which you want the inverse transform
-# times = np.linspace(1, 50, 100)
-
-# # Perform the inverse Laplace transform numerically for each time value
-# concentrations = [invertlaplace(lambda s: C_laplace(s, theta, rho_b, D, v, lamb, alpha, kd, Co, L, x), t, method='dehoog') for t in times]
-
-# # Plot the result
-# plt.plot(times, concentrations, label = 'v = 0.01 m/min')
-
-# theta, rho_b, D, v, lamb, alpha, kd, Co, L, x = 0.25, 1.5, 0.05, 0.1, 0, 1, 0, 1, 2, 2
-# concentrations2 = [invertlaplace(lambda s: C_laplace(s, theta, rho_b, D, v, lamb, alpha, kd, Co, L, x), t, method='dehoog') for t in times]
-
-# plt.plot(times, concentrations2, label = 'v = 0.02 m/min')
-
-
-# plt.xlabel('Time')
-# plt.ylabel('Concentration')
-# plt.title('Concentration vs. Time')
-# plt.legend()
-# plt.show()
-
-# #%%
-
-# velocities = np.linspace(0.01,0.5,10)
-
-# for i,v in enumerate(velocities):
-#     theta, rho_b, D, lamb, alpha, kd, Co, L, x = 0.25, 1.5, 0.0001, 0.25, 1, 0, 1, 2, 2
-#     times = np.linspace(1, 50, 100)
-#     concentrations = [invertlaplace(lambda s: C_laplace(s, theta, rho_b, D, v, lamb, alpha, kd, Co, L, x), t, method='dehoog') for t in times]
-#     plt.plot(times, concentrations, label = 'v = '+str(v))
-# plt.legend()
-# plt.show()
-
-
-def laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2):
-    big_theta = s + lamb + (rho_b * alpha * kd * s) / (theta * (s + alpha))
-    
-    # Here we use mp.sqrt and mp.exp from mpmath for multiprecision calculations
-    r1 = 1 / (2 * D) * (v + mp.sqrt(v ** 2 + 4 * D * big_theta))
-    r2 = 1 / (2 * D) * (v - mp.sqrt(v ** 2 + 4 * D * big_theta))
-    
-    # Convert the arguments to mpmath types before calling exp
-    term1_numerator = r2 * mp.exp(r2 * L + r1 * x) - r1 * mp.exp(r1 * L + r2 * x)
-    term1_denominator = r2 * mp.exp(r2 * L) - r1 * mp.exp(r1 * L)
-    
-    # Make sure the division is done using mpmath's div function for multiprecision calculations
-    term1 = mp.fdiv(term1_numerator, term1_denominator)
-    
-    # Division should be handled by mpmath to maintain compatibility
-    C = mp.fdiv(Co, s) * (1 - mp.exp(-ts * s)) * term1
-    
-    return C
-
-def concentration_102(t, theta, rho_b, D, v, lamb, alpha, kd, Co):
-    concentration = [invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog') for time in t]
-    print('transformed')
-    return concentration
-
-def laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2):
-    
-    big_theta = s + lamb + (rho_b * alpha * kd * s) / (theta * (s + alpha))
-    delta = 1/(2*D) * mp.sqrt((v**2 + 4*D*big_theta))
-    d = 2 * delta * L
-    h = D/v
-    sigma = v/(2*D)
-    
-    r1 = sigma + delta
-    r2 = sigma - delta
-    
-    term1_numerator = r2 * mp.exp(r1 * x - d) - r1 * mp.exp(r2 * x)
-    term1_denominator = r2 * (1 - h * r1) * mp.exp(-d) - (1 - h * r2)*r1
-    
-    term1 = mp.fdiv(term1_numerator, term1_denominator)
-    
-    C = mp.fdiv(Co, s) * (1 - mp.exp(-ts * s)) * term1
-    
-    return C
-
-def concentration_106(t, theta, rho_b, D, v, lamb, alpha, kd, Co):
-    concentration = [invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog') for time in t]
-    print('transformed')
-    return concentration
 
 
 
