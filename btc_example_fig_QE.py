@@ -33,11 +33,11 @@ ts = 5
 L = 2
 x = 2
 
-concs_102 = model.concentration_102(times,theta,rho_b,D,v,lamb,alpha,kd,Co) # generates a list of mpf objects
+concs_102 = model.concentration_102(times,theta,rho_b,D,v,lamb,alpha,kd,Co,L) # generates a list of mpf objects
 concs_102_float = [float(conc) for conc in concs_102] # convert to floats
 concs_102_array = np.array(concs_102_float) # convert to array
 
-concs_106 = model.concentration_106(times,theta,rho_b,D,v,lamb,alpha,kd,Co)
+concs_106 = model.concentration_106(times,theta,rho_b,D,v,lamb,alpha,kd,Co,L)
 concs_106_float = [float(conc) for conc in concs_106]
 concs_106_array = np.array(concs_106_float)
 #%%

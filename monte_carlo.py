@@ -30,7 +30,7 @@ problem = {
                [0,10]] # Co
 }
 
-param_values = saltelli.sample(problem, 2**7)
+param_values = saltelli.sample(problem, 2**8)
 
 params_df = pd.DataFrame(data=param_values,
                          columns=['theta', 'rho_b','D','v','lamb','alpha','kd','Co'])
@@ -54,7 +54,7 @@ plt.subplot(2,2,2)
 sns.kdeplot(params_df['Da'], c='black')
 plt.axvline(1, c = 'red')
 plt.xscale('log')
-plt.title('Sampled Dahmkohler #')
+plt.title('Sampled Damkohler #')
 
 
 plt.subplot(2,2,3)
@@ -67,7 +67,7 @@ plt.subplot(2,2,4)
 dahmkoler_counts = params_df['Da'].apply(lambda x: 'Transport Dominated' if x < 1 else 'Reaction Dominated').value_counts()
 dahmkoler_counts = dahmkoler_counts.reindex(['Transport Dominated', 'Reaction Dominated'])
 plt.bar(dahmkoler_counts.index, dahmkoler_counts.values, color=['orange','purple'])
-plt.title('System count by Dahmkohler #')
+plt.title('System count by Damkohler #')
 
 plt.suptitle('Parameter Ranges', fontsize=18)
 plt.tight_layout()
@@ -101,95 +101,125 @@ plt.show()
 print('Peclet range: ' +str(params_df['Pe'].min()) +' to ' + str(params_df['Pe'].max()))
 print('Dahmkohler range: ' +str(params_df['Da'].min()) +' to ' + str(params_df['Da'].max()))
 
+#%% scatter plot version
+# subset by Pe and Da
+diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
+adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
+diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
+adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+
+# plotting
+plt.figure(figsize=(8,8))
+plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# labeling
+plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# formatting
+plt.xlabel('Peclet Number')
+plt.ylabel('Damkohler Number')
+plt.xscale('log')
+plt.yscale('log')
+plt.axhline(1, c='black', linewidth=2)
+plt.axvline(1, c='black', linewidth=2)
+plt.show()
+
+
 #%% create BTCs from sampled parameters
 
-times = np.linspace(1, 50, 50)
-btc_data = []
-legend_labels_pe = []
-legend_labels_da = []
+# times = np.linspace(1, 50, 50)
+# btc_data = []
+# legend_labels_pe = []
+# legend_labels_da = []
 
-for i in range(len(params_df)):
-    theta = params_df.iloc[i, 0]
-    rho_b = params_df.iloc[i, 1]
-    D = params_df.iloc[i, 2]
-    v = params_df.iloc[i, 3]
-    lamb = params_df.iloc[i, 4]
-    alpha = params_df.iloc[i, 5]
-    kd = params_df.iloc[i, 6]
-    Co = params_df.iloc[i, 7]
+# for i in range(len(params_df)):
+#     theta = params_df.iloc[i, 0]
+#     rho_b = params_df.iloc[i, 1]
+#     D = params_df.iloc[i, 2]
+#     v = params_df.iloc[i, 3]
+#     lamb = params_df.iloc[i, 4]
+#     alpha = params_df.iloc[i, 5]
+#     kd = params_df.iloc[i, 6]
+#     Co = params_df.iloc[i, 7]
 
-    # Calculate Peclet number and Dahmkoler number
-    Pe = v * 2 / D
-    if Pe > 1:
-        Da = lamb * 2 / v
-    else:
-        Da = lamb * 2**2 / D
-    # Generate BTC
-    concs = np.array([model.concentration_102(times, theta, rho_b, D, v, lamb, alpha, kd, Co)])
+#     # Calculate Peclet number and Dahmkoler number
+#     Pe = v * 2 / D
+#     if Pe > 1:
+#         Da = lamb * 2 / v
+#     else:
+#         Da = lamb * 2**2 / D
+#     # Generate BTC
+#     concs = np.array([model.concentration_102(times, theta, rho_b, D, v, lamb, alpha, kd, Co)])
     
-    # Append concentration data to btc_data
-    btc_data.append(concs)
+#     # Append concentration data to btc_data
+#     btc_data.append(concs)
 
-    # Store legend labels
-    if Pe > 1 and 'Advection Dominated' not in legend_labels_pe:
-        legend_labels_pe.append('Advection Dominated')
-    elif Pe <= 1 and 'Dispersion Dominated' not in legend_labels_pe:
-        legend_labels_pe.append('Dispersion Dominated')
+#     # Store legend labels
+#     if Pe > 1 and 'Advection Dominated' not in legend_labels_pe:
+#         legend_labels_pe.append('Advection Dominated')
+#     elif Pe <= 1 and 'Dispersion Dominated' not in legend_labels_pe:
+#         legend_labels_pe.append('Dispersion Dominated')
 
 
-    if Da > 1 and 'Reaction Dominated' not in legend_labels_da:
-        legend_labels_da.append('Reaction Dominated')
-    elif Da <= 1 and 'Transport Dominated' not in legend_labels_da:
-        legend_labels_da.append('Transport Dominated')
+#     if Da > 1 and 'Reaction Dominated' not in legend_labels_da:
+#         legend_labels_da.append('Reaction Dominated')
+#     elif Da <= 1 and 'Transport Dominated' not in legend_labels_da:
+#         legend_labels_da.append('Transport Dominated')
         
-# Convert btc_data to numpy array and flatten
-btc_data = np.array(btc_data).reshape(len(params_df), -1)
+# # Convert btc_data to numpy array and flatten
+# btc_data = np.array(btc_data).reshape(len(params_df), -1)
 
-# Plotting BTCs
-plt.figure(figsize=(9,5))
-plt.subplot(1,2,1)
-for i, concs in enumerate(btc_data):
-    # Assign color based on Peclet number
-    Pe = params_df.iloc[i, 3] * 2 / params_df.iloc[i, 2]
-    color = 'red' if Pe > 1 else 'blue'
+# # Plotting BTCs
+# plt.figure(figsize=(9,5))
+# plt.subplot(1,2,1)
+# for i, concs in enumerate(btc_data):
+#     # Assign color based on Peclet number
+#     Pe = params_df.iloc[i, 3] * 2 / params_df.iloc[i, 2]
+#     color = 'red' if Pe > 1 else 'blue'
 
-    # Plot BTC
-    plt.plot(times, concs, alpha=0.3, color=color)
+#     # Plot BTC
+#     plt.plot(times, concs, alpha=0.3, color=color)
 
-legend_handles_pe = [mpatches.Patch(color='red', alpha=0.3), mpatches.Patch(color='blue', alpha=0.3)]
-plt.legend(legend_handles_pe, ['Advection Dominated', 'Dispersion Dominated'])
-plt.xlabel('Time (minutes)')
-plt.ylabel('Concentration (mg/m)')
-plt.title('Peclet #')
+# legend_handles_pe = [mpatches.Patch(color='red', alpha=0.3), mpatches.Patch(color='blue', alpha=0.3)]
+# plt.legend(legend_handles_pe, ['Advection Dominated', 'Dispersion Dominated'])
+# plt.xlabel('Time (minutes)')
+# plt.ylabel('Concentration (mg/m)')
+# plt.title('Peclet #')
 
-plt.subplot(1,2,2)
+# plt.subplot(1,2,2)
 
-for i, concs in enumerate(btc_data):
-    # Assign color based on Peclet number
-    Pe = params_df.iloc[i, 3] * 2 / params_df.iloc[i, 2]
-    if Pe > 1:
-        Da = params_df.iloc[i,4] * 2 / params_df.iloc[i,3]
-    else:
-        Da = params_df.iloc[i,4] * 2**2 / params_df.iloc[i,2]
-    color = 'purple' if Da > 1 else 'orange'
+# for i, concs in enumerate(btc_data):
+#     # Assign color based on Peclet number
+#     Pe = params_df.iloc[i, 3] * 2 / params_df.iloc[i, 2]
+#     if Pe > 1:
+#         Da = params_df.iloc[i,4] * 2 / params_df.iloc[i,3]
+#     else:
+#         Da = params_df.iloc[i,4] * 2**2 / params_df.iloc[i,2]
+#     color = 'purple' if Da > 1 else 'orange'
 
-    # Plot BTC
-    plt.plot(times, concs, alpha=0.3, color=color)
+#     # Plot BTC
+#     plt.plot(times, concs, alpha=0.3, color=color)
 
-legend_handles_da = [mpatches.Patch(color='purple', alpha=0.3), mpatches.Patch(color='orange', alpha=0.3)]
-plt.legend(legend_handles_da, ['Reaction Dominated', 'Transport Dominated'])
+# legend_handles_da = [mpatches.Patch(color='purple', alpha=0.3), mpatches.Patch(color='orange', alpha=0.3)]
+# plt.legend(legend_handles_da, ['Reaction Dominated', 'Transport Dominated'])
 
-# Adding labels and title
-plt.xlabel('Time (minutes)')
-plt.ylabel('Concentration (mg/m)')
-plt.title('Dahmkoler #', fontsize=12)
+# # Adding labels and title
+# plt.xlabel('Time (minutes)')
+# plt.ylabel('Concentration (mg/m)')
+# plt.title('Dahmkoler #', fontsize=12)
 
-plt.subplots_adjust(top=0.85)
-#plt.tight_layout()
-plt.suptitle('Contaminant Breakthrough Curves', fontsize=18)
+# plt.subplots_adjust(top=0.85)
+# #plt.tight_layout()
+# plt.suptitle('Contaminant Breakthrough Curves', fontsize=18)
 
-# Displaying the plot
-plt.show()
+# # Displaying the plot
+# plt.show()
 
 #%%
 
@@ -237,4 +267,245 @@ plt.show()
 # plt.ylim(0,1)
 # plt.legend()
 # plt.show()
+#%%
+# diffusive controlled transport 
+problem = {
+    'num_vars': 8,
+    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd','Co'],
+    'bounds': [[0, 1], # theta
+               [1, 2], # rho_b
+               [0.1, 2], # D
+               [0.001, 0.05], # v
+               [0, 0.0005], # lamb
+               [0, 0.0005], # alpha
+               [0, 0.0005], # kd
+               [0,10]] # Co
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+params_df = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd','Co'])
+
+
+# calculate Peclet and Dahmkoler
+params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
+params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
+
+# scatter plot version
+# subset by Pe and Da
+# diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
+# adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
+diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
+# adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+
+# # plotting
+# plt.figure(figsize=(8,8))
+# plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+# plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+# plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+# plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# # labeling
+# plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# # formatting
+# plt.xlabel('Peclet Number')
+# plt.ylabel('Damkohler Number')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.axhline(1, c='black', linewidth=2)
+# plt.axvline(1, c='black', linewidth=2)
+# plt.show()
+
+#%%
+# diffusive controlled reaction 
+problem = {
+    'num_vars': 8,
+    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd','Co'],
+    'bounds': [[0, 1], # theta
+               [1, 2], # rho_b
+               [0.1, 2], # D
+               [0.001, 0.05], # v
+               [0.05, 1], # lamb
+               [0.05, 1], # alpha
+               [0.05, 1], # kd
+               [0,10]] # Co
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+params_df = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd','Co'])
+
+
+# calculate Peclet and Dahmkoler
+params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
+params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
+
+# scatter plot version
+# subset by Pe and Da
+diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
+# adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
+# diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
+# adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+
+# # plotting
+# plt.figure(figsize=(8,8))
+# plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+# plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+# plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+# plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# # labeling
+# plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# # formatting
+# plt.xlabel('Peclet Number')
+# plt.ylabel('Damkohler Number')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.axhline(1, c='black', linewidth=2)
+# plt.axvline(1, c='black', linewidth=2)
+# plt.show()
+
+#%%
+# advective controlled transport 
+problem = {
+    'num_vars': 8,
+    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd','Co'],
+    'bounds': [[0, 1], # theta
+               [1, 2], # rho_b
+               [0.01, 0.1], # D
+               [0.1, 1], # v
+               [0, 0.05], # lamb
+               [0, 0.05], # alpha
+               [0, 0.05], # kd
+               [0,10]] # Co
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+params_df = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd','Co'])
+
+
+# calculate Peclet and Dahmkoler
+params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
+params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
+
+# scatter plot version
+# subset by Pe and Da
+# diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
+adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
+# diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
+# adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+
+# # plotting
+# plt.figure(figsize=(8,8))
+# plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+# plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+# plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+# plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# # labeling
+# plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# # formatting
+# plt.xlabel('Peclet Number')
+# plt.ylabel('Damkohler Number')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.axhline(1, c='black', linewidth=2)
+# plt.axvline(1, c='black', linewidth=2)
+# plt.show()
+
+#%%
+# advective controlled reaction 
+problem = {
+    'num_vars': 8,
+    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd','Co'],
+    'bounds': [[0, 1], # theta
+               [1, 2], # rho_b
+               [0.01, 0.1], # D
+               [0.1, 1], # v
+               [0.5, 1], # lamb
+               [0.5, 1], # alpha
+               [0.5, 1], # kd
+               [0,10]] # Co
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+params_df = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd','Co'])
+
+
+# calculate Peclet and Dahmkoler
+params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
+params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
+
+# scatter plot version
+# subset by Pe and Da
+#diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
+#adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
+#diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
+adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+
+# plotting
+# plt.figure(figsize=(8,8))
+# plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+# plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+# plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+# plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# # labeling
+# plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+# plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# # formatting
+# plt.xlabel('Peclet Number')
+# plt.ylabel('Damkohler Number')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.axhline(1, c='black', linewidth=2)
+# plt.axvline(1, c='black', linewidth=2)
+# plt.show()
+
+#%%
+
+# plotting
+plt.figure(figsize=(8,8))
+plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# labeling
+plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# formatting
+plt.xlabel('Peclet Number')
+plt.ylabel('Damkohler Number')
+plt.xscale('log')
+plt.yscale('log')
+plt.axhline(1, c='black', linewidth=2)
+plt.axvline(1, c='black', linewidth=2)
+plt.show()
+
+
 
