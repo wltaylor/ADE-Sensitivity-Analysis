@@ -8,7 +8,7 @@ from mpmath import invertlaplace
 from mpmath import mp, exp
 mp.dps = 12
 
-def laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2):
+def laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts, x, L):
     '''Laplace time solution for a Type I boundary condition pulse injection in one dimension
     Returns a concentration value "C" in the laplace domain
     s: laplace frequency variable
@@ -46,13 +46,13 @@ def concentration_102_all_metrics(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L)
     concentration = []
     
     # convert to dimensionless time
-    t = t/(L/v)
+    #t = t/(L/v)
 
     for time in t:
         if time == 0:
             conc = 0  # Assuming concentration at t=0 is Co 
         else:
-            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='cohen')
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
         concentration.append(conc)
     # Convert to array and normalize
     C_array = np.array(concentration, dtype=float) / Co
@@ -80,7 +80,7 @@ def concentration_102_all_metrics(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L)
 
     return early_arrival_idx, peak_index, late_arrival_idx, C_array
 
-def concentration_102_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L):
+def concentration_102_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, kd, Co, ts, x, L):
     '''Converts the laplace solution from the function laplace_102 to the real time domain, with an adaptive time step to reduce computation time
     Returns indexes for early arrival, peak concentration, and late time tailing, and arrays of the concentration values and corresponding adaptive times
     Indexes are returned in dimensionless time
@@ -90,7 +90,7 @@ def concentration_102_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, k
     concentration = []
     adaptive_times = []
     # convert to dimensionless time
-    t = t/(L/v)
+    #t = t/(L/v)
     default_step = t.max()/len(t)
     current_time = 0
     
@@ -101,7 +101,7 @@ def concentration_102_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, k
         if current_time == 0:
             conc = 0  # deal with time 0 case, if there is already concentration in the system change to that value
         else:
-            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), current_time, method='cohen')
+            conc = invertlaplace(lambda s: laplace_102(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=ts, x=x, L=L), current_time, method='dehoog')
         concentration.append(conc)
         adaptive_times.append(current_time)
         # check if concentration at current and previous time step changed substantially (> 1%)
@@ -111,7 +111,7 @@ def concentration_102_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, k
             current_time += default_step
         
         # speed up a lot if it's past the peak
-        if len(concentration) > 1 and concentration[-1] / np.max(concentration) < 0.1:
+        if len(concentration) > 1 and np.max(concentration) > 0 and concentration[-1] / np.max(concentration) < 0.1:
             current_time += default_step * 100
         else:
             current_time += default_step * 1.5
@@ -185,13 +185,13 @@ def concentration_106_all_metrics(t, theta, rho_b, D, v, lamb, alpha, kd, Co, L)
     concentration = []
     
     # convert to dimensionless time
-    t = t/(L/v)
+    #t = t/(L/v)
 
     for time in t:
         if time == 0:
             conc = 0  # Assuming concentration at t=0 is Co 
         else:
-            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='cohen')
+            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), time, method='dehoog')
         concentration.append(conc)
     # Convert to array and normalize
     C_array = np.array(concentration, dtype=float) / Co
@@ -229,7 +229,7 @@ def concentration_106_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, k
     concentration = []
     adaptive_times = []
     # convert to dimensionless time
-    t = t/(L/v)
+    #t = t/(L/v)
     default_step = t.max()/len(t)
     current_time = 0
     
@@ -240,7 +240,7 @@ def concentration_106_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, k
         if current_time == 0:
             conc = 0  # deal with time 0 case, if there is already concentration in the system change to that value
         else:
-            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), current_time, method='cohen')
+            conc = invertlaplace(lambda s: laplace_106(s, theta, rho_b, D, v, lamb, alpha, kd, Co, ts=5, x=2, L=2), current_time, method='dehoog')
         concentration.append(conc)
         adaptive_times.append(current_time)
         # check if concentration at current and previous time step changed substantially (> 1%)
@@ -250,10 +250,10 @@ def concentration_106_all_metrics_adaptive(t, theta, rho_b, D, v, lamb, alpha, k
             current_time += default_step
         
         # speed up a lot if it's past the peak
-        if len(concentration) > 1 and concentration[-1] / np.max(concentration) < 0.1:
+        if len(concentration) > 1 and np.max(concentration) > 0 and concentration[-1] / np.max(concentration) < 0.1:
             current_time += default_step * 100
         else:
-            current_time += default_step * 1.5
+            current_time += default_step * 1
             
     # Convert to array and normalize
     C_array = np.array(concentration, dtype=float) / Co

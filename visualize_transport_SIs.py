@@ -45,11 +45,11 @@ for transport in transports:
 
 
 #%%
-offset = 0.25
-width = 0.25
+offset = 0.2
+width = 0.2
 indices = ['early','peak','late']
 types = ['total','first','second']
-names= ['theta', 'rho_b','D','v','lamb','alpha','kd']
+names= ['Water Content', 'Bulk Density','Disperson','Pore Velocity','First Order \nDecay Constant','First Order \nDesorption Constant','Sorption Distribution \nCoefficient']
 colors = ['red','blue','green','purple']
 handles = ['Diffusive Transport','Diffusive Reaction','Advective Transport','Advective Reaction']
 fig, ax = plt.subplots(3, 3, figsize=(16, 12))
@@ -69,29 +69,37 @@ for j,transport in enumerate(transports):
         second_positions = np.arange(len(second_index_str))
         
         ax[i, 0].bar(positions + offset*j, bar_data[total]['ST'], color=colors[j], width=width)
-    
+        ax[i, 0].errorbar(positions + offset*j, bar_data[total]['ST'],
+                          yerr=bar_data[total]['ST_conf'], fmt='none', ecolor='black', capsize=3)
+        
         ax[i, 0].set_title(f'Total {x.capitalize()}')
         ax[i, 0].set_ylabel('Sensitivity Index')
         ax[i, 0].set_xticks(positions + offset / 2)
         ax[i, 0].set_xticklabels(names, rotation=45, ha='right')
-        ax[i, 0].set_ylim(0, 1)
+        ax[i, 0].set_ylim(0, 2)
         
         ax[i, 1].bar(positions + offset*j, bar_data[first]['S1'], color=colors[j], width=width)
+        ax[i, 1].errorbar(positions + offset*j, bar_data[first]['S1'],
+                          yerr=bar_data[first]['S1_conf'], fmt='none', ecolor='black', capsize=3)
     
         ax[i, 1].set_title(f'First Order {x.capitalize()}')
         ax[i, 1].set_xticks(positions + offset / 2)
         ax[i, 1].set_xticklabels(names, rotation=45, ha='right')
-        ax[i, 1].set_ylim(0, 1)
+        ax[i, 1].set_ylim(0, 2)
     
         ax[i, 2].bar(second_positions + offset*j, bar_data[second]['S2'], color=colors[j], width=width)
+        ax[i, 2].errorbar(second_positions + offset*j, bar_data[second]['S2'],
+                          yerr=bar_data[second]['S2_conf'], fmt='none', ecolor='black', capsize=3)
     
         ax[i, 2].set_title(f'Second Order {x.capitalize()}')
         ax[i, 2].set_xticks(second_positions + offset / 2)
         ax[i, 2].set_xticklabels(second_index_str, rotation=45, ha='right')
-        ax[i, 2].set_ylim(0, 1)
+        ax[i, 2].set_ylim(0, 2)
 
 plt.suptitle('Boundary Condition Sensitivity Indices', fontweight='bold', fontsize=24)
-fig.legend(handles, bbox_to_anchor=(1.15,0.93), loc='upper right')
+legend_handles = [plt.Rectangle((0, 0), 1, 1, color=colors[j], label=handles[j]) for j in range(len(handles))]
+
+fig.legend(legend_handles, handles, bbox_to_anchor=(0.5,-0.05), ncol=4, loc='lower center')
 fig.tight_layout()  # Adjust layout to prevent overlapping
 plt.show()    
 
@@ -253,7 +261,9 @@ for i, x in enumerate(indices):
     ax[i, 2].set_ylim(0, 1)
 
 plt.suptitle('Boundary Condition Sensitivity Indices', fontweight='bold', fontsize=24)
-plt.legend()
+type_1 = plt.Line2D([],[], lw=3, c='red', label='Type I BC')
+type_3 = plt.Line2D([],[], lw=3, c='blue', label='Type III BC')
+fig.legend(handles=[type_1, type_3], ncol=2, loc='upper center', bbox_to_anchor=(0.5,-0.01))
 fig.tight_layout()  # Adjust layout to prevent overlapping
 plt.show()
 

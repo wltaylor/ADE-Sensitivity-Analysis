@@ -507,5 +507,62 @@ plt.axhline(1, c='black', linewidth=2)
 plt.axvline(1, c='black', linewidth=2)
 plt.show()
 
+#%% new version
+# since dispersion is dependent on velocity and diffusion, I need to redo this figure
+# diffusion is now variable (range 8.64e-7 to 8.64e-5 (m^2/day))
+
+problem = {
+    'num_vars': 8,
+    'names': ['theta', 'rho_b','diffusion','v','lamb','alpha','kd','Co'],
+    'bounds': [[0, 1], # theta
+               [1, 2], # rho_b
+               [8.64*10**-7, 8.64*10**-4], # diffusion
+               [0.00000001, 1], # v
+               [0.6, 1], # lamb
+               [0.5, 1], # alpha
+               [0.5, 1], # kd
+               [0,10]] # Co
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+params_df = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','diffusion','v','lamb','alpha','kd','Co'])
+
+alpha = np.log10(2)**2.414
+
+# calculate dispersion
+params_df['D'] = params_df['v'] * alpha + params_df['diffusion']
+
+# calculate Peclet and Dahmkoler
+params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
+params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
+
+adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+
+plt.figure(figsize=(8,8))
+#plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+#plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+#plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# labeling
+plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+
+# formatting
+plt.xlabel('Peclet Number')
+plt.ylabel('Damkohler Number')
+plt.xscale('log')
+plt.yscale('log')
+plt.axhline(1, c='black', linewidth=2)
+plt.axvline(1, c='black', linewidth=2)
+plt.show()
+
+
+
+
 
 

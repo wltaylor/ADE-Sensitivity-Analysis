@@ -32,6 +32,7 @@ problem = {
 }
 
 param_values = saltelli.sample(problem, 2**8)
+print(len(param_values))
 times = np.linspace(0,12000,24000)
 L = 2
 Y_early = np.zeros([param_values.shape[0]])
