@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 from scipy import special
@@ -9,45 +8,54 @@ import json
 #%%
 # diffusive controlled transport 
 problem = {
-    'num_vars': 7,
-    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd'],
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','D','lamb','alpha','kd'],
     'bounds': [[0, 1], # theta
                [1, 2], # rho_b
                [0.1, 2], # D
-               [0.001, 0.05], # v
                [0, 0.0005], # lamb
                [0, 0.0005], # alpha
                [0, 0.0005]] # kd 
 }
 
-times = np.linspace(0,5000,5000)
+early_times = np.linspace(0,50000,10000)
+late_times = np.linspace(50000,20000000,1000)
+
 L = 2
-
-param_values = saltelli.sample(problem, 2**8)
+x = 2
+ts = 5
+v = 0.001
+Co = 1
+param_values = saltelli.sample(problem, 2**1)
 params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd'])
+                         columns=['theta', 'rho_b','D','lamb','alpha','kd'])
 #%%
-# calculate Peclet and Dahmkoler
-params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
-params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
-diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
 
-Y_early_dt = np.zeros(diff_trans.shape[0])
-Y_peak_dt = np.zeros(diff_trans.shape[0])
-Y_late_dt = np.zeros(diff_trans.shape[0])
+Y_early_dt = np.zeros(param_values.shape[0])
+Y_peak_dt = np.zeros(param_values.shape[0])
+Y_late_dt = np.zeros(param_values.shape[0])
 
 # initialize btc list
 btc_data = []
-
 for i, X in enumerate(param_values):
-    Y_early_dt[i], Y_peak_dt[i], Y_late_dt[i], concentrations_, times_ = model.concentration_106_all_metrics_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5],X[6],1,L)
-    print(f'Diffusive transport iteration: {i}')
+    # run early time domain, don't record the late time tailing metric
+    _, _, _, concentrations_early, adaptive_times_early = model.concentration_106_new_adaptive(early_times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
+    
+    # run late time domain, don't record the early and peak metrics
+    _, _, _, concentrations_late, adaptive_times_late = model.concentration_106_new_adaptive(late_times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
+
+    combined_times = np.concatenate([adaptive_times_early, adaptive_times_late])
+    combined_concentrations = np.concatenate([concentrations_early, concentrations_late])
+
+    Y_early_dt[i], Y_peak_dt[i], Y_late_dt[i] = model.calculate_metrics(combined_times, combined_concentrations)
+    print(Y_late_dt[i])
+    #print(f'Diffusive transport iteration: {i}')
 
     btc_data.append({
         "index":i,
         "params": X.tolist(),
-        "times":times_,
-        "concentrations":concentrations_.tolist()
+        "times": combined_times.tolist(),
+        "concentrations": combined_concentrations.tolist()
         })
 
 # save metrics
@@ -86,42 +94,43 @@ second_Si_late_dt.to_csv('results/second_Si_late_dt.csv', index=True)
 ############################################################################################
 # diffusive controlled reaction 
 problem = {
-    'num_vars': 7,
-    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd'],
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','D','lamb','alpha','kd'],
     'bounds': [[0, 1], # theta
                [1, 2], # rho_b
                [0.1, 2], # D
-               [0.001, 0.05], # v
                [0.05, 1], # lamb
                [0.05, 1], # alpha
                [0.05, 1]] # kd
 }
-times = np.linspace(0,5000,5000)
-param_values = saltelli.sample(problem, 2**8)
+times = np.linspace(0,3000000,1000)
+L = 2
+x = 2
+ts = 5
+v = 0.001
+Co = 1
+
+param_values = saltelli.sample(problem, 2**1)
 
 params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd'])
+                         columns=['theta', 'rho_b','D','lamb','alpha','kd'])
 
-# calculate Peclet and Dahmkoler
-params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
-params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
-diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
 
-Y_early_dr = np.zeros(diff_reaction.shape[0])
-Y_peak_dr = np.zeros(diff_reaction.shape[0])
-Y_late_dr = np.zeros(diff_reaction.shape[0])
+Y_early_dr = np.zeros(param_values.shape[0])
+Y_peak_dr = np.zeros(param_values.shape[0])
+Y_late_dr = np.zeros(param_values.shape[0])
 
 btc_data = []
 
 for i, X in enumerate(param_values):
-    Y_early_dr[i], Y_peak_dr[i], Y_late_dr[i], concentrations_, times_ = model.concentration_106_all_metrics_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5],X[6],1,L)
+    Y_early_dr[i], Y_peak_dr[i], Y_late_dr[i], concentrations, adaptive_times = model.concentration_106_new_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
     print(f'Diffusion reaction iteration: {i}')
 
     btc_data.append({
         "index": i,
         "params": X.tolist(),
-        "times": times_,
-        "concentrations": concentrations_.tolist()
+        "times": adaptive_times,
+        "concentrations": concentrations.tolist()
         })
 
 metrics_df = pd.DataFrame({
@@ -157,43 +166,43 @@ second_Si_late_dr.to_csv('results/second_Si_late_dr.csv', index=True)
 ############################################################################################
 # advective controlled transport 
 problem = {
-    'num_vars': 7,
-    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd'],
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','D','lamb','alpha','kd'],
     'bounds': [[0, 1], # theta
                [1, 2], # rho_b
                [0.01, 0.1], # D
-               [0.1, 1], # v
                [0, 0.05], # lamb
                [0, 0.05], # alpha
                [0, 0.05]] # kd
 }
-times = np.linspace(0,5000,5000)
-param_values = saltelli.sample(problem, 2**8)
+times = np.linspace(0,300,300)
+L = 2
+x = 2
+ts = 5
+v = 0.5
+Co = 1
+
+param_values = saltelli.sample(problem, 2**1)
 
 params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd'])
+                         columns=['theta', 'rho_b','D','lamb','alpha','kd'])
 
-# calculate Peclet and Dahmkoler
-params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
-params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
-adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
-
-Y_early_at = np.zeros(adv_trans.shape[0])
-Y_peak_at = np.zeros(adv_trans.shape[0])
-Y_late_at = np.zeros(adv_trans.shape[0])
+Y_early_at = np.zeros(param_values.shape[0])
+Y_peak_at = np.zeros(param_values.shape[0])
+Y_late_at = np.zeros(param_values.shape[0])
 
 btc_data = []
 
 for i, X in enumerate(param_values):
-    Y_early_at[i], Y_peak_at[i], Y_late_at[i], concentrations_, times_ = model.concentration_106_all_metrics_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5],X[6],1,L)
+    Y_early_at[i], Y_peak_at[i], Y_late_at[i], concentrations, adaptive_times = model.concentration_106_new_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
     print(f'Advection transport iteration: {i}')
 
 
     btc_data.append({
         "index": i,
         "params": X.tolist(),
-        "times": times_,
-        "concentrations": concentrations_.tolist()
+        "times": adaptive_times,
+        "concentrations": concentrations.tolist()
         })
 
 metrics_df = pd.DataFrame({
@@ -230,43 +239,43 @@ second_Si_late_at.to_csv('results/second_Si_late_at.csv', index=True)
 #%%
 # advective controlled reaction 
 problem = {
-    'num_vars': 7,
-    'names': ['theta', 'rho_b','D','v','lamb','alpha','kd'],
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','D','lamb','alpha','kd'],
     'bounds': [[0, 1], # theta
                [1, 2], # rho_b
                [0.01, 0.1], # D
-               [0.05, 1], # v
                [0.6, 1], # lamb
                [0.5, 1], # alpha
                [0.5, 1]] # kd
 }
 
-param_values = saltelli.sample(problem, 2**8)
-times = np.linspace(0,5000,5000)
+param_values = saltelli.sample(problem, 2**1)
+times = np.linspace(0,4000,1000)
 L = 2
+x = 2
+ts = 5
+v = 0.5
+Co = 1
+
 params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','D','v','lamb','alpha','kd'])
+                         columns=['theta', 'rho_b','D','lamb','alpha','kd'])
 
-# calculate Peclet and Dahmkoler
-params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
-params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
-adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
 
-Y_early_ar = np.zeros(adv_reaction.shape[0])
-Y_peak_ar = np.zeros(adv_reaction.shape[0])
-Y_late_ar = np.zeros(adv_reaction.shape[0])
+Y_early_ar = np.zeros(param_values.shape[0])
+Y_peak_ar = np.zeros(param_values.shape[0])
+Y_late_ar = np.zeros(param_values.shape[0])
 
 btc_data = []
 
 for i, X in enumerate(param_values):
-    Y_early_ar[i], Y_peak_ar[i], Y_late_ar[i], concentrations_, times_ = model.concentration_106_all_metrics_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5],X[6],1,L)
+    Y_early_ar[i], Y_peak_ar[i], Y_late_ar[i], concentrations, adaptive_times = model.concentration_106_new_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
     print(f'Advection reaction iteration: {i}')
 
     btc_data.append({
         "index": i,
         "params": X.tolist(),
-        "times": times_,
-        "concentrations": concentrations_.tolist()
+        "times": adaptive_times,
+        "concentrations": concentrations.tolist()
         })
 
 metrics_df = pd.DataFrame({

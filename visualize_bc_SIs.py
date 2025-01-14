@@ -7,12 +7,9 @@ Created on Wed Jun 19 11:48:35 2024
 """
 
 import numpy as np
-from scipy import interpolate
 import pandas as pd
-from mpmath import invertlaplace, mp
-mp.dps = 12
-import model
 import matplotlib.pyplot as plt
+import json
 plt.style.use('ggplot')
 
 total_Si_early_102 = pd.read_csv('results/total_Si_early_102.csv', index_col=0)
@@ -38,7 +35,7 @@ SIs_dict_102 = {
     }
 indices = ['early','peak','late']
 types = ['total','first','second']
-names= ['theta', 'rho_b','D','v','lamb','alpha','kd']
+names= ['theta', 'rho_b','D','lamb','alpha','kd']
 
 
 fig, ax = plt.subplots(3,3,figsize=(16,12))
@@ -93,7 +90,7 @@ SIs_dict_106 = {
     }
 indices = ['early','peak','late']
 types = ['total','first','second']
-names= ['theta', 'rho_b','D','v','lamb','alpha','kd']
+names= ['theta', 'rho_b','D','lamb','alpha','kd']
 
 
 fig, ax = plt.subplots(3,3,figsize=(16,12))
@@ -146,32 +143,82 @@ for i, x in enumerate(indices):
     second_positions = np.arange(len(second_index_str))
     
     ax[i, 0].bar(positions, SIs_dict_106[total]['ST'], color='blue', width=width)
+    ax[i, 0].errorbar(positions, SIs_dict_106[total]['ST'], yerr=SIs_dict_106[total]['ST_conf'], fmt='none', color='black', capsize=3)
     ax[i, 0].bar(positions + offset, SIs_dict_102[total]['ST'], color='red', width=width)
+    ax[i, 0].errorbar(positions + offset, SIs_dict_102[total]['ST'], yerr=SIs_dict_102[total]['ST_conf'], fmt='none', color='black', capsize=3)
 
     ax[i, 0].set_title(f'Total {x.capitalize()}')
     ax[i, 0].set_ylabel('Sensitivity Index')
     ax[i, 0].set_xticks(positions + offset / 2)
     ax[i, 0].set_xticklabels(names, rotation=45, ha='right')
-    ax[i, 0].set_ylim(0, 1)
+    #ax[i, 0].set_ylim(0, 2)
     
     ax[i, 1].bar(positions, SIs_dict_106[first]['S1'], color='blue', width=width)
+    ax[i, 1].errorbar(positions, SIs_dict_106[first]['S1'], yerr=SIs_dict_106[first]['S1_conf'], fmt='none', color='black', capsize=3)
     ax[i, 1].bar(positions + offset, SIs_dict_102[first]['S1'], color='red', width=width)
+    ax[i, 1].errorbar(positions + offset, SIs_dict_102[first]['S1'], yerr=SIs_dict_102[first]['S1_conf'], fmt='none', color='black', capsize=3)
 
     ax[i, 1].set_title(f'First Order {x.capitalize()}')
     ax[i, 1].set_xticks(positions + offset / 2)
     ax[i, 1].set_xticklabels(names, rotation=45, ha='right')
-    ax[i, 1].set_ylim(0, 1)
+    #ax[i, 1].set_ylim(0, 2)
 
     ax[i, 2].bar(second_positions, SIs_dict_106[second]['S2'], color='blue', width=width)
+    ax[i, 2].errorbar(second_positions, SIs_dict_106[second]['S2'], yerr=SIs_dict_106[second]['S2_conf'], fmt='none', color='black', capsize=3)
     ax[i, 2].bar(second_positions + offset, SIs_dict_102[second]['S2'], color='red', width=width)
+    ax[i, 2].errorbar(second_positions + offset, SIs_dict_102[second]['S2'], yerr=SIs_dict_102[second]['S2_conf'], fmt='none', color='black', capsize=3)
+
 
     ax[i, 2].set_title(f'Second Order {x.capitalize()}')
     ax[i, 2].set_xticks(second_positions + offset / 2)
     ax[i, 2].set_xticklabels(second_index_str, rotation=45, ha='right')
-    ax[i, 2].set_ylim(0, 1)
+    #ax[i, 2].set_ylim(0, 2)
 
 plt.suptitle('Boundary Condition Sensitivity Indices', fontweight='bold', fontsize=24)
 plt.legend()
 fig.tight_layout()  # Adjust layout to prevent overlapping
 plt.show()
+
+
+#%%
+keys = ['model102','model106']
+colors = ['red','blue']
+titles = ['Type I BC BTCs','Type III BC BTCs']
+
+fig, axes = plt.subplots(1,2,figsize=(8,4))
+axes = axes.flatten()
+
+for i,ax in enumerate(axes):
+    # load BTCs
+    with open(f'results/btc_data_{keys[i]}.json', 'r') as f:
+        btc_data = json.load(f)
+
+    # plot curves
+    for btc in btc_data:
+        times = np.array(btc['times'])
+        concentrations = np.array(btc['concentrations'])
+        ax.plot(times, concentrations, alpha=0.15, c=colors[i])
+        peak = np.max(concentrations)
+        time_at_peak = times[np.argmax(concentrations)]
+        tailing_value = peak * 0.1
+        
+        after_peak_mask = times > time_at_peak
+        if np.any(concentrations[after_peak_mask] < tailing_value):
+            print(f'BTC for {keys[i]} converged')
+        else:
+            print(f'BTC for {keys[i]} did NOT converge')
+
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Normalized C')
+    ax.set_title(f'{titles[i]}', fontweight='bold', fontsize=12)
+    ax.set_yscale('log')
+    #ax.set_xlim(0,200)
+    #ax.set_ylim(0,.01)
+
+fig.suptitle('BTCs under different boundary conditions', fontweight='bold', fontsize=18)
+plt.tight_layout()
+plt.show()
+
+
+
 
