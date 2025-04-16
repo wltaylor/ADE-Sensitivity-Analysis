@@ -202,20 +202,21 @@ for i,ax in enumerate(axes):
         time_at_peak = times[np.argmax(concentrations)]
         tailing_value = peak * 0.1
         
-        after_peak_mask = times > time_at_peak
-        if np.any(concentrations[after_peak_mask] < tailing_value):
-            print(f'BTC for {keys[i]} converged')
-        else:
-            print(f'BTC for {keys[i]} did NOT converge')
+        # after_peak_mask = times > time_at_peak
+        # if np.any(concentrations[after_peak_mask] < tailing_value):
+        #     print(f'BTC for {keys[i]} converged')
+        # else:
+        #     print(f'BTC for {keys[i]} did NOT converge')
 
     ax.set_xlabel('Time')
     ax.set_ylabel('Normalized C')
     ax.set_title(f'{titles[i]}', fontweight='bold', fontsize=12)
     ax.set_yscale('log')
-    #ax.set_xlim(0,200)
+    ax.set_ylim(10e-9,1)
     #ax.set_ylim(0,.01)
 
 fig.suptitle('BTCs under different boundary conditions', fontweight='bold', fontsize=18)
+
 plt.tight_layout()
 plt.show()
 

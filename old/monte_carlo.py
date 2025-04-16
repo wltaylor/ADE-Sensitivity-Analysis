@@ -512,56 +512,191 @@ plt.show()
 # diffusion is now variable (range 8.64e-7 to 8.64e-5 (m^2/day))
 
 problem = {
-    'num_vars': 8,
-    'names': ['theta', 'rho_b','diffusion','v','lamb','alpha','kd','Co'],
-    'bounds': [[0, 1], # theta
-               [1, 2], # rho_b
-               [8.64*10**-7, 8.64*10**-4], # diffusion
-               [0.00000001, 1], # v
-               [0.6, 1], # lamb
-               [0.5, 1], # alpha
-               [0.5, 1], # kd
-               [0,10]] # Co
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta - porosity
+               [0.29, 1.74], # rho_b - bulk density
+               [0.001, 10], # dispersivity
+               [0.00001, 1], # lamb - first order decay rate constant
+               [0, 24], # alpha - first order desorption rate constant
+               [0.01, 100]] # kd - sorption distribution coefficient
 }
 
 param_values = saltelli.sample(problem, 2**8)
 
 params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','diffusion','v','lamb','alpha','kd','Co'])
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
 
-alpha = np.log10(2)**2.414
+params_df['v'] = 0.5
 
 # calculate dispersion
-params_df['D'] = params_df['v'] * alpha + params_df['diffusion']
+params_df['D'] = params_df['v'] * params_df['dispersivity']
 
 # calculate Peclet and Dahmkoler
 params_df['Pe'] = (params_df['v'] * 2) / params_df['D']
 params_df['Da'] = (params_df['lamb'] * 2) / params_df['v']
 
 adv_reaction = params_df[(params_df['Pe'] > 1) & (params_df['Da'] > 1)]
+adv_trans = params_df[(params_df['Pe'] > 1) & (params_df['Da'] < 1)]
+diff_reaction = params_df[(params_df['Pe'] < 1) & (params_df['Da'] > 1)]
+diff_trans = params_df[(params_df['Pe'] < 1) & (params_df['Da'] < 1)]
+
+
 
 plt.figure(figsize=(8,8))
-#plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
+plt.scatter(diff_reaction['Pe'], diff_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Diffusive controlled reaction')
 plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
-#plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
-#plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+plt.scatter(diff_trans['Pe'], diff_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
 
 # labeling
-plt.annotate('Diffusive controlled reaction', (10**-1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
-plt.annotate('Advective controlled reaction', (10**1.4, 10**2.4), fontweight='bold', fontsize=10, ha='center')
-plt.annotate('Diffusive controlled transport', (10**-1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
-plt.annotate('Advective controlled transport', (10**1.4, 10**-2.4), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Diffusive controlled reaction', (10**-1.5, 10), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled reaction', (10**1.5, 10), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Diffusive controlled transport', (10**-1.5, 10**-2), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled transport', (10**1.5, 10**-2), fontweight='bold', fontsize=10, ha='center')
 
 # formatting
 plt.xlabel('Peclet Number')
 plt.ylabel('Damkohler Number')
 plt.xscale('log')
 plt.yscale('log')
+plt.xlim(1e-3,1e3)
+plt.ylim(1e-3,1e3)
 plt.axhline(1, c='black', linewidth=2)
 plt.axvline(1, c='black', linewidth=2)
 plt.show()
 
+#%%
+# adv reaction
+problem = {
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta - porosity
+               [0.29, 1.74], # rho_b - bulk density
+               [np.log10(0.001), np.log10(1.8)], # dispersivity
+               [np.log10(0.28), np.log10(10)], # lamb - first order decay rate constant
+               [0, 24], # alpha - first order desorption rate constant
+               [0.01, 100]] # kd - sorption distribution coefficient
+}
 
+param_values = saltelli.sample(problem, 2**8)
+
+adv_reaction = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
+# convert back to real space
+adv_reaction['dispersivity'] = 10**adv_reaction['dispersivity']
+adv_reaction['lamb'] = 10**adv_reaction['lamb']
+
+adv_reaction['v'] = 0.5
+# calculate dispersion
+adv_reaction['D'] = adv_reaction['v'] * adv_reaction['dispersivity']
+# calculate Peclet and Dahmkoler
+adv_reaction['Pe'] = (adv_reaction['v'] * 2) / adv_reaction['D']
+adv_reaction['Da'] = (adv_reaction['lamb'] * 2) / adv_reaction['v']
+
+# advective transport
+problem = {
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta - porosity
+               [0.29, 1.74], # rho_b - bulk density
+               [np.log10(0.001), np.log10(1.8)], # dispersivity
+               [np.log10(0.00001), np.log10(0.25)], # lamb - first order decay rate constant
+               [0, 24], # alpha - first order desorption rate constant
+               [0.01, 100]] # kd - sorption distribution coefficient
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+adv_trans = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
+# convert back to real space
+adv_trans['dispersivity'] = 10**adv_trans['dispersivity']
+adv_trans['lamb'] = 10**adv_trans['lamb']
+
+adv_trans['v'] = 0.5
+# calculate dispersion
+adv_trans['D'] = adv_trans['v'] * adv_trans['dispersivity']
+# calculate Peclet and Dahmkoler
+adv_trans['Pe'] = (adv_trans['v'] * 2) / adv_trans['D']
+adv_trans['Da'] = (adv_trans['lamb'] * 2) / adv_trans['v']
+
+# dispersive reaction
+problem = {
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta - porosity
+               [0.29, 1.74], # rho_b - bulk density
+               [np.log10(2), np.log10(100)], # dispersivity
+               [np.log10(0.28), np.log10(10)], # lamb - first order decay rate constant
+               [0, 24], # alpha - first order desorption rate constant
+               [0.01, 100]] # kd - sorption distribution coefficient
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+disp_reaction = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
+# convert back to real space
+disp_reaction['dispersivity'] = 10**disp_reaction['dispersivity']
+disp_reaction['lamb'] = 10**disp_reaction['lamb']
+
+disp_reaction['v'] = 0.5
+# calculate dispersion
+disp_reaction['D'] = disp_reaction['v'] * disp_reaction['dispersivity']
+# calculate Peclet and Dahmkoler
+disp_reaction['Pe'] = (disp_reaction['v'] * 2) / disp_reaction['D']
+disp_reaction['Da'] = (disp_reaction['lamb'] * 2) / disp_reaction['v']
+
+
+# dispersive transport
+problem = {
+    'num_vars': 6,
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta - porosity
+               [0.29, 1.74], # rho_b - bulk density
+               [np.log10(2), np.log10(100)], # dispersivity
+               [np.log10(0.00001), np.log10(0.25)], # lamb - first order decay rate constant
+               [0, 24], # alpha - first order desorption rate constant
+               [0.01, 100]] # kd - sorption distribution coefficient
+}
+
+param_values = saltelli.sample(problem, 2**8)
+
+disp_trans = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
+# convert back to real space
+disp_trans['dispersivity'] = 10**disp_trans['dispersivity']
+disp_trans['lamb'] = 10**disp_trans['lamb']
+disp_trans['v'] = 0.5
+# calculate dispersion
+disp_trans['D'] = disp_trans['v'] * disp_trans['dispersivity']
+# calculate Peclet and Dahmkoler
+disp_trans['Pe'] = (disp_trans['v'] * 2) / disp_trans['D']
+disp_trans['Da'] = (disp_trans['lamb'] * 2) / disp_trans['v']
+
+plt.figure(figsize=(8,8))
+plt.scatter(disp_reaction['Pe'], disp_reaction['Da'], c='blue', alpha=0.7, s = 5, label='Dispersion controlled reaction')
+plt.scatter(adv_reaction['Pe'], adv_reaction['Da'], c='purple', alpha=0.7, s=5, label='Advective controlled reaction')
+plt.scatter(disp_trans['Pe'], disp_trans['Da'], c='orange', alpha=0.7, s=5, label='Diffusive controlled transport')
+plt.scatter(adv_trans['Pe'], adv_trans['Da'], c='red', alpha=0.7, s=5, label='Advective controlled transport')
+
+# labeling
+plt.annotate('Dispersion controlled reaction', (10**-1.5, 100), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled reaction', (10**1.5, 100), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Dispersion controlled transport', (10**-1.5, 10**-2), fontweight='bold', fontsize=10, ha='center')
+plt.annotate('Advective controlled transport', (10**1.5, 10**-2), fontweight='bold', fontsize=10, ha='center')
+
+# formatting
+plt.xlabel('Peclet Number')
+plt.ylabel('Damkohler Number')
+plt.xscale('log')
+plt.yscale('log')
+plt.xlim(1e-3,1e3)
+plt.ylim(1e-3,1e3)
+plt.axhline(1, c='black', linewidth=2)
+plt.axvline(1, c='black', linewidth=2)
+plt.show()
 
 
 

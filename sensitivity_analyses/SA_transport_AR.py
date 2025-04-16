@@ -1,3 +1,7 @@
+import sys
+import os
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(parent_dir)
 import numpy as np
 import pandas as pd
 from scipy import special
@@ -8,40 +12,57 @@ import json
 from tqdm import tqdm
 import os
 
-output_dir = '/Users/williamtaylor/Documents/GitHub/ADE-Sensitivity-Analysis/results'
+output_dir = '/Users/williamtaylor/Documents/GitHub/ADE-Sensitivity-Analysis/results_larger_sample'
 os.makedirs(output_dir, exist_ok=True)
 
-# advective controlled reaction 
+# advective controlled reaction
 problem = {
     'num_vars': 6,
-    'names': ['theta', 'rho_b','D','lamb','alpha','kd'],
-    'bounds': [[0, 1], # theta
-               [1, 2], # rho_b
-               [0.01, 0.1], # D
-               [0.6, 1], # lamb
-               [0.5, 1], # alpha
-               [0.5, 1]] # kd
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta
+               [0.29, 1.74], # rho_b
+               [np.log10(2e-3), np.log10(10e-1)], # dispersivity
+               [np.log10(8e-1), np.log10(500)], # lambda - first order decay rate constant
+               [np.log10(0.01), np.log10(24)], # alpha - first order desorption rate constant
+               [np.log10(0.01), np.log10(100)]] # kd - sorption distribution coefficient
 }
 
-param_values = saltelli.sample(problem, 2**11)
-times = np.linspace(0,7000,5000)
-L = 2
-x = 2
-ts = 5
-v = 0.5
+# perform sampling
+param_values = saltelli.sample(problem, 2**13)
+
+# time discretization
+times = np.linspace(0,100,1000)
+L = 2 # length
+x = 2 # reference point
+ts = 0.25 # pulse duration (days)
+v = 1 # pore velocity (m/day)
 Co = 1
 
-params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','D','lamb','alpha','kd'])
+# convert log sampled parameters back to real space
+param_values[:,2] = 10**param_values[:,2]
+param_values[:,3] = 10**param_values[:,3]
+param_values[:,4] = 10**param_values[:,4]
+param_values[:,5] = 10**param_values[:,5]
 
+params_df = pd.DataFrame(data=param_values,
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
+
+# convert log sampled parameters back to real space
+#params_df['dispersivity'] = 10**params_df['dispersivity']
+#params_df['lamb'] = 10**params_df['lamb']
+#params_df['alpha'] = 10**params_df['alpha']
+#params_df['kd'] = 10**params_df['kd']
+
+# make empty arrays for storing metrics
 Y_early_ar = np.zeros(param_values.shape[0])
 Y_peak_ar = np.zeros(param_values.shape[0])
 Y_late_ar = np.zeros(param_values.shape[0])
 
+# make a list for appending/storing breakthrough curve concentrations
 btc_data = []
 
 for i, X in tqdm(enumerate(param_values), desc='Running Analysis'):
-    concentrations, adaptive_times = model.concentration_106_new_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
+    concentrations, adaptive_times = model.concentration_106_new_adaptive_extended(times,X[0],X[1],X[2],X[3],X[4],X[5], Co=Co, v=v, ts=ts, L=L, x=x)
     
     Y_early_ar[i], Y_peak_ar[i], Y_late_ar[i] = model.calculate_metrics(adaptive_times, concentrations)
 

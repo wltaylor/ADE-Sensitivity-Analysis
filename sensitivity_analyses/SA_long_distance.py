@@ -22,23 +22,30 @@ os.makedirs(output_dir, exist_ok=True)
 # set parameters
 problem = {
     'num_vars': 6,
-    'names': ['theta', 'rho_b','D','lamb','alpha','kd'],
-    'bounds': [[0, 1], # theta
-               [1, 2], # rho_b
-               [0.1, 2], # D
-               [0, 0.5], # lamb
-               [0, 0.5], # alpha
-               [0, 0.5]] # kd 
+    'names': ['theta', 'rho_b','dispersivity','lamb','alpha','kd'],
+    'bounds': [[0.25, 0.7], # theta
+               [0.29, 1.74], # rho_b
+               [np.log10(6.94e-4), np.log10(100)], # dispersivity
+               [np.log10(8e-1), np.log10(100)], # lamb
+               [np.log10(0.01), np.log10(100)], # alpha
+               [np.log10(0.01), np.log10(100)]] # kd
 }
 
-ts = 750
+ts = 50
 x = 300
 L = 300
-v = 0.1
-times = np.linspace(0,300000000,10000)
-param_values = saltelli.sample(problem, 2**1)
+v = 1
+Co=150
+times = np.linspace(0,10000,1000)
+param_values = saltelli.sample(problem, 2**6)
+
+param_values[:,2] = 10**param_values[:,2]
+param_values[:,3] = 10**param_values[:,3]
+param_values[:,4] = 10**param_values[:,4]
+param_values[:,5] = 10**param_values[:,5]
+
 params_df = pd.DataFrame(data=param_values,
-                         columns=['theta', 'rho_b','D','lamb','alpha','kd'])
+                         columns=['theta', 'rho_b','dispersivity','lamb','alpha','kd'])
 
 Y_early = np.zeros(param_values.shape[0])
 Y_peak = np.zeros(param_values.shape[0])
@@ -47,7 +54,7 @@ Y_late = np.zeros(param_values.shape[0])
 btc_data = []
 
 for i, X in tqdm(enumerate(param_values), desc='Running Analysis'):
-    concentrations, adaptive_times = model.concentration_102_new_adaptive(times,X[0],X[1],X[2],X[3],X[4],X[5],Co=1, v=v, ts=ts, L=L, x=x)
+    concentrations, adaptive_times = model.concentration_102_new_adaptive_extended(times,X[0],X[1],X[2],X[3],X[4],X[5],Co=Co, v=v, ts=ts, L=L, x=x)
 
     Y_early[i], Y_peak[i], Y_late[i] = model.calculate_metrics(adaptive_times, concentrations)
 
