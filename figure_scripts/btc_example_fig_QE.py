@@ -55,7 +55,7 @@ plt.scatter(times_adaptive[late_idx], C_array[late_idx], c='green', marker='v', 
 plt.legend()
 plt.xlabel('Dimensionless Time')
 plt.ylabel('Normalized Concentration')
-plt.savefig('/Users/williamtaylor/Documents/Github/ADE-Sensitivity-Analysis/figures/example_btc.pdf', format='pdf', bbox_inches='tight')
+#plt.savefig('/Users/williamtaylor/Documents/Github/ADE-Sensitivity-Analysis/figures/example_btc.pdf', format='pdf', bbox_inches='tight')
 
 plt.show()
 
